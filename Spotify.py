@@ -147,7 +147,11 @@ class SpotifyClient:
         )
         server_process.start()
 
-        auth_url = f"https://accounts.spotify.com/authorize?client_id={self.client_id}&response_type=code&redirect_uri=http://192.168.4.140:28624/callback&scope=user-read-currently-playing"
+        scopes = [
+            "user-read-currently-playing",
+            "user-read-playback-state",
+        ]
+        auth_url = f"https://accounts.spotify.com/authorize?client_id={self.client_id}&response_type=code&redirect_uri=http://192.168.4.140:28624/callback&scope={'+'.join(scopes)}"
 
         print(f"Open this URL in your browser: {auth_url}")
 
@@ -234,6 +238,47 @@ class SpotifyClient:
             )
 
         return None
+
+    def get_player_queue(self) -> Optional[List[TrackObject]]:
+        self.access_token = self.get_access_token()
+
+        response = requests.get(
+            f"{self.BASE_URL}/me/player/queue",
+            headers={"Authorization": f"Bearer {self.access_token}"},
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+
+            return [
+                TrackObject(
+                    id=track["id"],
+                    name=track["name"],
+                    album=PartialAlbum(
+                        id=track["album"]["id"],
+                        name=track["album"]["name"],
+                        images=[
+                            ImageObject(
+                                url=image["url"],
+                                height=image["height"],
+                                width=image["width"],
+                            )
+                            for image in track["album"]["images"]
+                        ],
+                    ),
+                    artists=[
+                        PartialArtist(
+                            id=artist["id"],
+                            name=artist["name"],
+                        )
+                        for artist in track["artists"]
+                    ],
+                )
+                for track in data["queue"]
+            ]
+
+        print("Error fetching player queue", response.json())
+        return [] # Return an empty list if there's an error
 
     def fetch_album_art(self, url: str, resize_factor: int = 64) -> Image:
         response = requests.get(url)
