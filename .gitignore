@@ -1,3 +1,5 @@
 .env
 tokens.txt
 **/__pycache__
+logs
+images
