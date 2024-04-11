@@ -11,6 +11,9 @@ from logger import Logger
 
 logger = Logger("spotify")
 
+HOST_IP = os.getenv("HOST_IP")
+
+
 class CallbackHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         # Handle the GET request from the Spotify authentication callback
@@ -35,7 +38,7 @@ class CallbackHandler(BaseHTTPRequestHandler):
                 data={
                     "grant_type": "authorization_code",
                     "code": authorization_code,
-                    "redirect_uri": "http://192.168.4.140:28624/callback",
+                    "redirect_uri": f"http://{HOST_IP}:28624/callback",
                     "client_id": os.getenv("SPOTIPY_CLIENT_ID"),
                     "client_secret": os.getenv("SPOTIPY_CLIENT_SECRET"),
                 },
@@ -65,7 +68,7 @@ class CallbackHandler(BaseHTTPRequestHandler):
 def run_callback_server(queue):
     server_address = ("", 28624)
     httpd = HTTPServer(server_address, CallbackHandler)
-    logger.debug("Callback server is running on http://192.168.4.140:28624")
+    logger.debug("Callback server is running on http://{HOST_IP}:28624")
     httpd.handle_request()
     queue.put(True)
 
@@ -152,7 +155,7 @@ class SpotifyClient:
             "user-read-currently-playing",
             "user-read-playback-state",
         ]
-        auth_url = f"https://accounts.spotify.com/authorize?client_id={self.client_id}&response_type=code&redirect_uri=http://192.168.4.140:28624/callback&scope={'+'.join(scopes)}"
+        auth_url = f"https://accounts.spotify.com/authorize?client_id={self.client_id}&response_type=code&redirect_uri=http://{HOST_IP}:28624/callback&scope={'+'.join(scopes)}"
 
         logger.info(f"Open this URL in your browser: {auth_url}")
 
@@ -277,4 +280,4 @@ class SpotifyClient:
             ]
 
         logger.error("Error fetching player queue", response.json())
-        return [] # Return an empty list if there's an error
+        return []  # Return an empty list if there's an error

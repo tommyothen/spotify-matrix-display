@@ -1,0 +1,15 @@
+[Unit]
+Description=Matrix Display Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=root
+WorkingDirectory=/home/matrix/matrix
+ExecStartPre=/bin/mkdir -p /home/matrix/matrix/images
+ExecStartPre=/bin/chmod 777 /home/matrix/matrix/images
+ExecStart=/usr/bin/python3 /home/matrix/matrix/main.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
