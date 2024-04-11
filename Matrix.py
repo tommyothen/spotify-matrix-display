@@ -1,13 +1,15 @@
-from Spotify import SpotifyClient
+from Spotify import SpotifyClient, TrackObject
 from PIL import Image
 from time import sleep
 from rgbmatrix import RGBMatrix, RGBMatrixOptions
+import threading
 
 
 class Matrix:
     def __init__(self, spotify: SpotifyClient):
         self.spotify = spotify
         self.next_album_art = None
+        self.next_album_art_thread = None
 
         options = RGBMatrixOptions()
         options.rows = 64
@@ -17,6 +19,15 @@ class Matrix:
         options.hardware_mapping = "adafruit-hat"
 
         self.matrix = RGBMatrix(options=options)
+
+    def fetch_next_album_art(self, next_track: TrackObject):
+        try:
+            next_album_art_url = next_track.album.images[-1].url
+            print(f"Optimistically fetching artwork for: {next_track.artists[0].name} - {next_track.name}")
+            self.next_album_art = self.spotify.fetch_album_art(next_album_art_url)
+        except Exception as e:
+            print("Error fetching next album art", e)
+            self.next_album_art = None
 
     def run(self):
         song_id: str = None
@@ -54,17 +65,12 @@ class Matrix:
                             next_track = queue[0] if queue else None
                             if next_track and next_track.id != next_song_id:
                                 next_song_id = next_track.id
-                                try:
-                                    next_album_art_url = next_track.album.images[-1].url
-                                    print(
-                                        f"Optimistically fetching artwork for: {next_track.artists[0].name} - {next_track.name}"
-                                    )
-                                    self.next_album_art = self.spotify.fetch_album_art(
-                                        next_album_art_url
-                                    )
-                                except Exception as e:
-                                    print("Error fetching next album art", e)
-                                    self.next_album_art = None
+
+                                # Start a new thread to fetch the next album art
+                                if self.next_album_art_thread is not None:
+                                    self.next_album_art_thread.join()
+                                self.next_album_art_thread = threading.Thread(target=self.fetch_next_album_art, args=(next_track,))
+                                self.next_album_art_thread.start()
                             else:
                                 print("No next track in the queue")
                                 self.next_album_art = None
