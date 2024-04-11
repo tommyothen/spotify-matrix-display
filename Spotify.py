@@ -1,3 +1,4 @@
+# spotify.py
 import os
 import requests
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -6,9 +7,9 @@ import multiprocessing
 import time
 from dataclasses import dataclass
 from typing import Optional, List
-from PIL import Image
-import io
+from logger import Logger
 
+logger = Logger("spotify")
 
 class CallbackHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -52,7 +53,7 @@ class CallbackHandler(BaseHTTPRequestHandler):
             with open("tokens.txt", "w") as f:
                 f.write(f"{access_token}\n{refresh_token}\n{expiration_time}")
 
-            print("Access token and refresh token saved to tokens.txt")
+            logger.debug("Access token and refresh token saved to tokens.txt")
 
         else:
             self.send_response(404)
@@ -64,7 +65,7 @@ class CallbackHandler(BaseHTTPRequestHandler):
 def run_callback_server(queue):
     server_address = ("", 28624)
     httpd = HTTPServer(server_address, CallbackHandler)
-    print("Callback server is running on http://192.168.4.140:28624")
+    logger.debug("Callback server is running on http://192.168.4.140:28624")
     httpd.handle_request()
     queue.put(True)
 
@@ -128,7 +129,7 @@ class SpotifyClient:
 
         # Check if the access token has expired
         if int(time.time()) > int(expiration_time):
-            print("Access token has expired. Refreshing...")
+            logger.debug("Access token has expired. Refreshing...")
             access_token = self.refresh_access_token(refresh_token)
 
         # Set the access token just in case i forget to set it
@@ -136,7 +137,7 @@ class SpotifyClient:
         return access_token
 
     def authenticate(self):
-        print("Waiting for user authentication...")
+        logger.info("Waiting for user authentication...")
 
         # Create a queue to communicate between processes
         queue = multiprocessing.Queue()
@@ -153,7 +154,7 @@ class SpotifyClient:
         ]
         auth_url = f"https://accounts.spotify.com/authorize?client_id={self.client_id}&response_type=code&redirect_uri=http://192.168.4.140:28624/callback&scope={'+'.join(scopes)}"
 
-        print(f"Open this URL in your browser: {auth_url}")
+        logger.info(f"Open this URL in your browser: {auth_url}")
 
         # Open the user's browser to authenticate the app
         webbrowser.open(auth_url)
@@ -180,7 +181,7 @@ class SpotifyClient:
         )
 
         if response.status_code != 200:
-            print("Error refreshing access token", response.json())
+            logger.error("Error refreshing access token", response.json())
             exit(1)
 
         data = response.json()
@@ -192,7 +193,7 @@ class SpotifyClient:
         with open("tokens.txt", "w") as f:
             f.write(f"{access_token}\n{refresh_token}\n{expiration_time}")
 
-        print("Access token refreshed")
+        logger.debug("Access token refreshed")
         return access_token
 
     def get_currently_playing(self) -> Optional[CurrentlyPlaying]:
@@ -275,31 +276,5 @@ class SpotifyClient:
                 for track in data["queue"]
             ]
 
-        print("Error fetching player queue", response.json())
-        return []  # Return an empty list if there's an error
-
-    def fetch_album_art(self, url: str, resize_factor: int = 64) -> Image:
-        # We first try to see if we've stored the image locally
-        image_filename = url.split("/")[-1]
-        image_path = f"/tmp/image_cache/{image_filename}.jpg"
-        if os.path.exists(image_path):
-            print("Found locally stored image")
-
-            album_art = Image.open(image_path)
-            album_art = album_art.resize((resize_factor, resize_factor))
-            return album_art
-
-        response = requests.get(url)
-        album_art = Image.open(io.BytesIO(response.content))
-        album_art = album_art.resize((resize_factor, resize_factor))
-
-        # Make sure the format is RGB
-        album_art.convert("RGB")
-
-        # Save the image to the images directory
-        album_art.save(image_path)
-
-        size_in_bytes = os.path.getsize(image_path)
-        print(f"Saved image to {image_path} ({size_in_bytes} bytes)")
-
-        return album_art
+        logger.error("Error fetching player queue", response.json())
+        return [] # Return an empty list if there's an error
