@@ -187,9 +187,7 @@ class SpotifyClient:
 
         access_token: str = data["access_token"]
         expires_in = data["expires_in"]
-        expiration_time = (
-            int(time.time()) + int(expires_in) - (60 * 1000)
-        )  # Subtract 60 seconds to account for latency
+        expiration_time = int(time.time()) + int(expires_in)
 
         with open("tokens.txt", "w") as f:
             f.write(f"{access_token}\n{refresh_token}\n{expiration_time}")
@@ -278,14 +276,30 @@ class SpotifyClient:
             ]
 
         print("Error fetching player queue", response.json())
-        return [] # Return an empty list if there's an error
+        return []  # Return an empty list if there's an error
 
     def fetch_album_art(self, url: str, resize_factor: int = 64) -> Image:
+        # We first try to see if we've stored the image locally
+        image_filename = url.split("/")[-1]
+        image_path = f"/tmp/image_cache/{image_filename}.jpg"
+        if os.path.exists(image_path):
+            print("Found locally stored image")
+
+            album_art = Image.open(image_path)
+            album_art = album_art.resize((resize_factor, resize_factor))
+            return album_art
+
         response = requests.get(url)
         album_art = Image.open(io.BytesIO(response.content))
         album_art = album_art.resize((resize_factor, resize_factor))
 
         # Make sure the format is RGB
         album_art.convert("RGB")
+
+        # Save the image to the images directory
+        album_art.save(image_path)
+
+        size_in_bytes = os.path.getsize(image_path)
+        print(f"Saved image to {image_path} ({size_in_bytes} bytes)")
 
         return album_art
